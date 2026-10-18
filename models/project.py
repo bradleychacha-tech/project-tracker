@@ -9,4 +9,9 @@ class Project:
         self.description = description
 
     def to_dict(self):
-        return vars(self)
+        return {
+            "id": self.id,
+            "title": self.title,
+            "user_id": self.user_id,
+            "description": self.description
+        }

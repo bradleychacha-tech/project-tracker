@@ -6,11 +6,19 @@ class Task:
         self.id = str(uuid4())[:8]
         self.title = title
         self.project_id = project_id
-        self.contributors = contributors or []
+        if contributors is None:
+            contributors = []
+        self.contributors = contributors
         self.completed = False
 
     def complete(self):
         self.completed = True
 
     def to_dict(self):
-        return vars(self)
+        return {
+            "id": self.id,
+            "title": self.title,
+            "project_id": self.project_id,
+            "contributors": self.contributors,
+            "completed": self.completed
+        }

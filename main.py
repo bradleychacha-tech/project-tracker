@@ -10,138 +10,193 @@ from utils.storage import load, save
 console = Console()
 
 
+def find_item(items, text, name_field):
+    for item in items:
+        if item["id"] == text or item[name_field].lower() == text.lower():
+            return item
+    return None
+
+
 def find_user(name):
-    return next(
-        (u for u in load("users") if u["name"].lower() == name.lower()
-         or u["id"] == name),
-        None
+    return find_item(load("users"), name, "name")
+
+
+def add_user(args):
+    user = User(args.name, args.email)
+    users = load("users")
+    users.append(user.to_dict())
+    save("users", users)
+    console.print(f"[green]User added: {user.name} ({user.id})[/green]")
+
+
+def list_users():
+    table = Table(title="Users")
+    table.add_column("ID")
+    table.add_column("Name")
+    table.add_column("Email")
+    for user in load("users"):
+        table.add_row(user["id"], user["name"], user["email"])
+    console.print(table)
+
+
+def add_project(args):
+    user = find_user(args.user)
+    if not user:
+        raise ValueError("User not found")
+    project = Project(args.title, user["id"], args.description)
+    projects = load("projects")
+    projects.append(project.to_dict())
+    save("projects", projects)
+    console.print("[green]Project added.[/green]")
+
+
+def list_projects(args):
+    projects = load("projects")
+    if args.user:
+        user = find_user(args.user)
+        if not user:
+            raise ValueError("User not found")
+        user_projects = []
+        for project in projects:
+            if project["user_id"] == user["id"]:
+                user_projects.append(project)
+        projects = user_projects
+
+    table = Table(title="Projects")
+    table.add_column("ID")
+    table.add_column("Title")
+    table.add_column("Owner ID")
+    table.add_column("Description")
+    for project in projects:
+        table.add_row(
+            project["id"], project["title"],
+            project["user_id"], project["description"]
+        )
+    console.print(table)
+
+
+def add_task(args):
+    project = find_item(load("projects"), args.project, "title")
+    if not project:
+        raise ValueError("Project not found")
+
+    contributor_ids = []
+    for name in args.contributors:
+        user = find_user(name)
+        if not user:
+            raise ValueError(f"User not found: {name}")
+        contributor_ids.append(user["id"])
+
+    task = Task(args.title, project["id"], contributor_ids)
+    tasks = load("tasks")
+    tasks.append(task.to_dict())
+    save("tasks", tasks)
+    console.print("[green]Task added.[/green]")
+
+
+def list_tasks():
+    table = Table(title="Tasks")
+    table.add_column("ID")
+    table.add_column("Title")
+    table.add_column("Project ID")
+    table.add_column("Status")
+    for task in load("tasks"):
+        status = "Complete" if task["completed"] else "Pending"
+        table.add_row(task["id"], task["title"], task["project_id"], status)
+    console.print(table)
+
+
+def complete_task(args):
+    tasks = load("tasks")
+    task = find_item(tasks, args.task, "title")
+    if not task:
+        raise ValueError("Task not found")
+    task["completed"] = True
+    save("tasks", tasks)
+    console.print("[green]Task completed.[/green]")
+
+
+def create_parser():
+    parser = argparse.ArgumentParser(description="Project Tracker CLI")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    add_user_parser = subparsers.add_parser("add-user", help="Add a new user")
+    add_user_parser.add_argument("--name", required=True, help="Name of the user")
+    add_user_parser.add_argument("--email", default="", help="Email of the user")
+
+    subparsers.add_parser("list-users", help="Show all users")
+
+    add_project_parser = subparsers.add_parser(
+        "add-project", help="Add a project for a user"
     )
+    add_project_parser.add_argument(
+        "--user", required=True, help="Name or ID of the project owner"
+    )
+    add_project_parser.add_argument(
+        "--title", required=True, help="Title of the project"
+    )
+    add_project_parser.add_argument(
+        "--description", default="", help="Description of the project"
+    )
+
+    list_projects_parser = subparsers.add_parser(
+        "list-projects", help="Show all projects, or only one user's projects"
+    )
+    list_projects_parser.add_argument(
+        "--user", help="Name or ID of the user to filter by"
+    )
+
+    search_projects_parser = subparsers.add_parser(
+        "search-projects", help="Show the projects of one user"
+    )
+    search_projects_parser.add_argument(
+        "--user", required=True, help="Name or ID of the user"
+    )
+
+    add_task_parser = subparsers.add_parser(
+        "add-task", help="Add a task to a project"
+    )
+    add_task_parser.add_argument(
+        "--project", required=True, help="Title or ID of the project"
+    )
+    add_task_parser.add_argument(
+        "--title", required=True, help="Title of the task"
+    )
+    add_task_parser.add_argument(
+        "--contributors", nargs="*", default=[],
+        help="Names or IDs of users who work on the task"
+    )
+
+    subparsers.add_parser("list-tasks", help="Show all tasks and their status")
+
+    complete_task_parser = subparsers.add_parser(
+        "complete-task", help="Mark a task as complete"
+    )
+    complete_task_parser.add_argument(
+        "--task", required=True, help="Title or ID of the task"
+    )
+
+    return parser
 
 
 def run():
-    parser = argparse.ArgumentParser(description="Project Tracker CLI")
-    commands = parser.add_subparsers(dest="command", required=True)
-
-    p = commands.add_parser("add-user")
-    p.add_argument("--name", required=True)
-    p.add_argument("--email", default="")
-
-    commands.add_parser("list-users")
-
-    p = commands.add_parser("add-project")
-    p.add_argument("--user", required=True)
-    p.add_argument("--title", required=True)
-    p.add_argument("--description", default="")
-
-    p = commands.add_parser("list-projects")
-    p.add_argument("--user")
-
-    p = commands.add_parser("search-projects")
-    p.add_argument("--user", required=True)
-
-    p = commands.add_parser("add-task")
-    p.add_argument("--project", required=True)
-    p.add_argument("--title", required=True)
-    p.add_argument("--contributors", nargs="*", default=[])
-
-    commands.add_parser("list-tasks")
-
-    p = commands.add_parser("complete-task")
-    p.add_argument("--task", required=True)
-
-    args = parser.parse_args()
+    args = create_parser().parse_args()
 
     try:
         if args.command == "add-user":
-            user = User(args.name, args.email)
-            users = load("users")
-            users.append(user.to_dict())
-            save("users", users)
-            console.print(f"[green]User added: {user.name} ({user.id})[/green]")
-
+            add_user(args)
         elif args.command == "list-users":
-            table = Table(title="Users")
-            table.add_column("ID")
-            table.add_column("Name")
-            table.add_column("Email")
-            for u in load("users"):
-                table.add_row(u["id"], u["name"], u["email"])
-            console.print(table)
-
+            list_users()
         elif args.command == "add-project":
-            user = find_user(args.user)
-            if not user:
-                raise ValueError("User not found")
-            project = Project(args.title, user["id"], args.description)
-            projects = load("projects")
-            projects.append(project.to_dict())
-            save("projects", projects)
-            console.print("[green]Project added.[/green]")
-
+            add_project(args)
         elif args.command in ("list-projects", "search-projects"):
-            projects = load("projects")
-            if args.command == "search-projects" or args.user:
-                name = args.user
-                user = find_user(name)
-                if not user:
-                    raise ValueError("User not found")
-                projects = [p for p in projects if p["user_id"] == user["id"]]
-
-            table = Table(title="Projects")
-            for column in ("ID", "Title", "Owner ID", "Description"):
-                table.add_column(column)
-            for p in projects:
-                table.add_row(p["id"], p["title"], p["user_id"], p["description"])
-            console.print(table)
-
+            list_projects(args)
         elif args.command == "add-task":
-            project = next(
-                (p for p in load("projects")
-                 if p["title"].lower() == args.project.lower()
-                 or p["id"] == args.project),
-                None
-            )
-            if not project:
-                raise ValueError("Project not found")
-
-            contributors = []
-            for name in args.contributors:
-                user = find_user(name)
-                if not user:
-                    raise ValueError(f"User not found: {name}")
-                contributors.append(user["id"])
-
-            task = Task(args.title, project["id"], contributors)
-            tasks = load("tasks")
-            tasks.append(task.to_dict())
-            save("tasks", tasks)
-            console.print("[green]Task added.[/green]")
-
+            add_task(args)
         elif args.command == "list-tasks":
-            table = Table(title="Tasks")
-            table.add_column("ID")
-            table.add_column("Title")
-            table.add_column("Project ID")
-            table.add_column("Status")
-            for t in load("tasks"):
-                status = "Complete" if t["completed"] else "Pending"
-                table.add_row(t["id"], t["title"], t["project_id"], status)
-            console.print(table)
-
+            list_tasks()
         elif args.command == "complete-task":
-            tasks = load("tasks")
-            task = next(
-                (t for t in tasks
-                 if t["id"] == args.task
-                 or t["title"].lower() == args.task.lower()),
-                None
-            )
-            if not task:
-                raise ValueError("Task not found")
-            task["completed"] = True
-            save("tasks", tasks)
-            console.print("[green]Task completed.[/green]")
-
+            complete_task(args)
     except (ValueError, KeyError) as error:
         console.print(f"[red]Error: {error}[/red]")
 

@@ -1,17 +1,17 @@
 import json
 from pathlib import Path
 
-DATA = Path(__file__).resolve().parent.parent / "data"
-DATA.mkdir(exist_ok=True)
+DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
+DATA_FOLDER.mkdir(exist_ok=True)
 
 
-def load(name):
-    path = DATA / f"{name}.json"
-    if not path.exists():
-        path.write_text("[]")
-    return json.loads(path.read_text())
+def load(file_name):
+    file_path = DATA_FOLDER / f"{file_name}.json"
+    if not file_path.exists():
+        file_path.write_text("[]")
+    return json.loads(file_path.read_text())
 
 
-def save(name, items):
-    path = DATA / f"{name}.json"
-    path.write_text(json.dumps(items, indent=4))
+def save(file_name, items):
+    file_path = DATA_FOLDER / f"{file_name}.json"
+    file_path.write_text(json.dumps(items, indent=4))
